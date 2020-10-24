@@ -8,7 +8,7 @@ trait Logger {
     println(s"Version: ${request.version}")
     println("Headers:")
     for ((key, value) <- request.headers) {
-      println(s"  ${key} -> ${value}")
+      println(s"  $key -> $value")
     }
     println("Body:")
     request.body.foreach(println(_))

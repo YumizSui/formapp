@@ -1,13 +1,13 @@
 package sysdes.formapp.server
 
-import scala.collection.mutable.HashMap
+import scala.collection.mutable
 
 case class Request(
-    method: String,
-    path: String,
-    version: String,
-    headers: HashMap[String, String] = HashMap(),
-    var body: Option[String] = None
+                    method: String,
+                    path: String,
+                    version: String,
+                    headers: mutable.HashMap[String, String] = mutable.HashMap(),
+                    var body: Option[String] = None
 )
 
 object Request {

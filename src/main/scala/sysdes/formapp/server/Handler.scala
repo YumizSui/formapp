@@ -14,17 +14,15 @@ abstract class Handler(socket: Socket) extends Runnable with Logger {
     val out = new OutputStreamWriter(socket.getOutputStream, encode)
     try {
       Request.parse(in) match {
-        case Some(Request(_, "/favicon.ico", _, _, _)) | Some(Request(_, "/robot.txt", _, _, _)) => { /* ignore */ }
-        case Some(request) => {
+        case Some(Request(_, "/favicon.ico", _, _, _)) | Some(Request(_, "/robot.txt", _, _, _)) => /* ignore */
+        case Some(request) =>
           requestLog(request)
           val response = this.handle(request)
           responseLog(response)
           out.write(response.toString)
-        }
-        case None => {
+        case None =>
           out.write(BadRequest().toString)
           System.err.println("[ERROR] Illegal request")
-        }
       }
     } catch {
       case e: Throwable => e.printStackTrace()

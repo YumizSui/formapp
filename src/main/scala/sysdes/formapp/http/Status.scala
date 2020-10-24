@@ -80,5 +80,5 @@ object Status {
  * @param message The message corresponds to the code
  */
 sealed abstract class Status(code: Int, message: String) {
-  override def toString: String = s"${code} ${message}"
+  override def toString: String = s"$code $message"
 }

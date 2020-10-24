@@ -39,3 +39,4 @@ sealed abstract class Response(status: Status, body: String) {
 final case class Ok(body: String = "")         extends Response(Status.OK, body)
 final case class NotFound(body: String = "")   extends Response(Status.NotFound, body)
 final case class BadRequest(body: String = "") extends Response(Status.BadRequest, body)
+final case class Unauthorized(body: String = "") extends Response(Status.Unauthorized, body)
