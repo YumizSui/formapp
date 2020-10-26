@@ -43,6 +43,11 @@ object Utils {
     paramMap
   }
 
+  // ユーザ，パスワードの認証
+  def isAuthenticate(user: String, password: String): Boolean = {
+    user=="user" && password == "password"
+  }
+
   // paramMapからStateをセットする．
   def setStateByParamMap(state: State, paramMap: Map[String, String]): State = {
     for ((name, value) <- paramMap) {
@@ -54,9 +59,14 @@ object Utils {
     }
     state
   }
-
-  // ユーザ，パスワードの認証
-  def isAuthenticate(user: String, password: String): Boolean = {
-    user=="user" && password == "password"
+  def bodyToState(body: Option[String]): State = {
+    var state = State("","","")
+    body match {
+      case Some(body) =>
+        val paramMap: Map[String, String] = generateParamMap(body)
+        state = setStateByParamMap(state, paramMap)
+      case None =>
+    }
+    state
   }
 }

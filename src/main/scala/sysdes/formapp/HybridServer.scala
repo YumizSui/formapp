@@ -4,19 +4,19 @@ import java.net.Socket
 import java.nio.charset.StandardCharsets
 import java.util.{Base64, UUID}
 
-import sysdes.formapp.Form.SessionResponse._
+import sysdes.formapp.Form.StatelessResponse._
 import sysdes.formapp.Form.State
 import sysdes.formapp.Form.Utils._
 import sysdes.formapp.Form.SessionManager._
 import sysdes.formapp.server.{Handler, Server, Unauthorized}
 
 import scala.collection.mutable
-object SessionServer extends Server(8002) {
-  override def getHandler(socket: Socket) = new SessionServerHandler(socket)
+object HybridServer extends Server(8003) {
+  override def getHandler(socket: Socket) = new HybridServerHandler(socket)
 }
 
-object SessionServerHandler {
-  val sessionFile = "src/main/session.txt"
+object HybridServerHandler {
+  val sessionFile = "src/main/session_hybrid.txt"
   // インスタンス間で共有する内部状態に関する変数・関数はこの中に記述
   val states: mutable.HashMap[UUID, State]= getSession(sessionFile)
   //指定されたセッションIDに対して状態を追加
@@ -27,36 +27,31 @@ object SessionServerHandler {
   def generateSession(): UUID = {
     val newSessionID = UUID.randomUUID()
     addState(newSessionID)
-    writeSession(states, sessionFile)
     newSessionID
   }
 
   //セッション情報をparamMapで更新
-  def updateState(sessionID: UUID, paramMap: Map[String, String]): Unit ={
-    SessionServerHandler.states.get(sessionID) match {
+  def updateState(sessionID: UUID, state: State): Unit ={
+    println("out!")
+    states.get(sessionID) match {
       case Some(_) =>
-        for ((name, value) <- paramMap) {
-          name match {
-            case "name"=> SessionServerHandler.states(sessionID).name= value
-            case "sex"=>SessionServerHandler.states(sessionID).sex = value
-            case "impressions"=>SessionServerHandler.states(sessionID).impressions = value
-          }
-        }
+        states(sessionID).name= state.name
+        states(sessionID).sex = state.sex
+        states(sessionID).impressions = state.impressions
     }
-    writeSession(states,sessionFile)
+    writeSession(states, sessionFile)
   }
 
-  //getSessionIDはOption[UUID]を返す．sessionIDがSessionServerHandler.statesに登録されていればセッションIDの値をSome(UUID)で，されていなければNoneを返す
+  //getSessionIDはOption[UUID]を返す．sessionIDがHybridServerHandler.statesに登録されていればセッションIDの値をSome(UUID)で，されていなければNoneを返す
   def getSessionID(cookieStr: String): Option[UUID] = {
     val CookieList = cookieStr.split('=')
     val sessionID = UUID.fromString(CookieList(1))
-    Some(sessionID).filter(SessionServerHandler.states.contains)
+    Some(sessionID).filter(HybridServerHandler.states.contains)
   }
-
 }
 
 
-class SessionServerHandler(socket: Socket) extends Handler(socket) {
+class HybridServerHandler(socket: Socket) extends Handler(socket) {
 
   import sysdes.formapp.server.{NotFound, Request, Response}
 
@@ -64,25 +59,26 @@ class SessionServerHandler(socket: Socket) extends Handler(socket) {
 
     // Cookieが指定されていたらセッションIDを取り出す．指定されていなければ新しく生成する．
     val sessionID = request.headers.get("Cookie") match {
-      case Some(cookieStr) => SessionServerHandler.getSessionID(cookieStr)
+      case Some(cookieStr) => HybridServerHandler.getSessionID(cookieStr)
       case None => None
     }
     sessionID match {
       case Some(sessionID) =>
         // pathに付与されたクエリパラメータからparamMapを生成する．
-        val paramMap = pathToQueryMap(request.path)
-        // paramMapからサーバに保存された状態を更新
-        SessionServerHandler.updateState(sessionID, paramMap)
+        val state = bodyToState(request.body)
         //現在の状態を関数に渡してレスポンスを生成し，Set-Cookieする．
-        val nowState: State = SessionServerHandler.states.getOrElse(sessionID, State("", "", ""))
         val response = request match {
           case Request("GET", "/", _, _, _) => index()
-          case Request("GET", "/?", _, _, _) => index()
-          case Request("GET", path, _, _, _) if path.startsWith("/name?") => name(nowState)
-          case Request("GET", path, _, _, _) if path.startsWith("/sex?") => sex(nowState)
-          case Request("GET", path, _, _, _) if path.startsWith("/message?") => message(nowState)
-          case Request("GET", path, _, _, _) if path.startsWith("/confirm?") => confirm(nowState)
-          case Request("POST", "/submit", _, _, _) => submit()
+          case Request("GET", path, _, _, _) if path.startsWith("/?") => index()
+          case Request("GET", path, _, _, _) if path.startsWith("/name?") => name(state)
+          case Request("POST", "/name", _, _,  _) => name(state)
+          case Request("POST", "/sex", _, _, _) => sex(state)
+          case Request("POST", "/message", _, _, _) => message(state)
+          case Request("POST", "/confirm", _, _, _) => confirm(state)
+          case Request("POST", "/submit", _, _, _) =>
+            // submit時のみparamMapからサーバに保存された状態を更新
+            HybridServerHandler.updateState(sessionID, state)
+            submit()
           case _ => NotFound(s"Requested resource '${request.path}' for ${request.method} is not found.")
         }
         response.addHeader("Set-Cookie", s"""session-id=$sessionID""")
@@ -99,7 +95,7 @@ class SessionServerHandler(socket: Socket) extends Handler(socket) {
             val password = paramStr.split(':')(1)
             if (isAuthenticate(username, password)) {
               // 認証に成功　クッキーをセットして返す
-              val sessionID = SessionServerHandler.generateSession()
+              val sessionID = HybridServerHandler.generateSession()
               val response = index()
               response.addHeader("Set-Cookie", s"""session-id=$sessionID""")
               response
